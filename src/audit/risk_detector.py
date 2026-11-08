@@ -128,6 +128,39 @@ class RiskDetector:
                             )
                         )
 
+            # 4. Auditoria de Indicação Restritiva de Marca sem Equivalência (Art. 41)
+            if re.search(r"(exclusivamente da marca|vedad[ao]\s+(?:a\s+)?(?:apresenta[çc][ãa]o|oferta)\s+de\s+(?:marca\s+)?similar|sem\s+aceita[çc][ãa]o\s+de\s+equivalente)", texto_lower):
+                alerts.append(
+                    RiskAlert(
+                        tipo="Restrição Indevida de Marca / Vedação de Similar",
+                        descricao=(
+                            "Cláusula com possível direcionamento ou restrição indevida à indicação de marca exclusiva "
+                            "sem admissão explícita de produto equivalente ou similar, em potencial desacordo com o Art. 41 da Lei nº 14.133/2021."
+                        ),
+                        item_edital=chunk.item or "S/N",
+                        referencia_legal="Art. 41, I da Lei nº 14.133/2021",
+                        severidade=SeveridadeAlerta.ALTA,
+                    )
+                )
+
+            # 5. Auditoria de Exigência Excessiva de Quantitativo em Atestado Técnico (Súmula 263/TCU)
+            atestado_match = re.search(r"(?:comprova[çc][ãa]o\s+(?:de\s+)?(?:no\s+m[íi]nimo|m[íi]nima\s+de)\s+(\d+)\s*%\s*(?:das?\s+quantidades?|do\s+quantitativo|do\s+total|do\s+objeto))", texto_lower)
+            if atestado_match:
+                pct_atestado = int(atestado_match.group(1))
+                if pct_atestado > 50:
+                    alerts.append(
+                        RiskAlert(
+                            tipo="Exigência Excessiva de Quantitativo em Atestado Técnico",
+                            descricao=(
+                                f"A exigência de comprovação prévia de {pct_atestado}% do quantitativo do objeto em atestado "
+                                f"supera a baliza máxima razoável de 50% consolidada pela Súmula nº 263 do TCU."
+                            ),
+                            item_edital=chunk.item or "S/N",
+                            referencia_legal="Súmula nº 263 do TCU c/c Art. 67 da Lei nº 14.133/2021",
+                            severidade=SeveridadeAlerta.MEDIA,
+                        )
+                    )
+
         return alerts
 
     @staticmethod

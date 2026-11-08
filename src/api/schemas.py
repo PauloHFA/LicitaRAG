@@ -72,6 +72,21 @@ class AlertaRiscoResponse(BaseModel):
     severidade: str
 
 
+class MinutaImpugnacaoResponse(BaseModel):
+    edital_id: int
+    edital_numero: str
+    orgao: str
+    total_alertas: int
+    minuta_markdown: str
+
+
+class RelatorioAuditoriaResponse(BaseModel):
+    edital_id: int
+    edital_numero: str
+    orgao: str
+    relatorio_markdown: str
+
+
 class HealthResponse(BaseModel):
     status: str
     version: str

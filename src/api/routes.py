@@ -14,10 +14,14 @@ from src.api.schemas import (
     EditalDetailResponse,
     HealthResponse,
     MetricsResponse,
+    MinutaImpugnacaoResponse,
     PrazoItemResponse,
+    RelatorioAuditoriaResponse,
 )
 from src.audit.checklist import ChecklistExtractor
 from src.audit.deadlines import DeadlinesAndSanctionsExtractor
+from src.audit.petitions import PetitionGenerator
+from src.audit.report_generator import AuditReportGenerator
 from src.audit.risk_detector import RiskDetector
 from src.config import settings
 from src.db.models import (
@@ -32,6 +36,8 @@ from src.db.models import (
 from src.db.session import get_db_session
 from src.generation.responder import GroundedResponder
 from src.retrieval.hybrid_retriever import HybridRetriever
+from src.retrieval.query_expansion import LegalQueryExpander
+from src.retrieval.semantic_cache import SemanticCache
 
 router = APIRouter(prefix="/api/v1", tags=["Editais"])
 system_router = APIRouter(tags=["Sistema"])
@@ -42,6 +48,8 @@ responder = GroundedResponder()
 checklist_extractor = ChecklistExtractor()
 deadlines_extractor = DeadlinesAndSanctionsExtractor()
 risk_detector = RiskDetector()
+semantic_cache = SemanticCache()
+query_expander = LegalQueryExpander()
 
 
 # ==========================================
@@ -167,11 +175,17 @@ async def chat_edital(
     if not edital:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Edital não encontrado.")
 
-    # 1. Recuperação híbrida (vetorial + full-text) com fusão RRF e Cross-Encoder reranking
+    # 0. Verificação em Cache Semântico (< 10ms)
+    cached_response = semantic_cache.get(edital_id, request.pergunta)
+    if cached_response is not None:
+        return cached_response
+
+    # 1. Expansão semântica de consulta e recuperação híbrida (vetorial + full-text)
+    expanded_query = query_expander.expand_query(request.pergunta)
     candidates = await retriever.search_database(
         db=db,
         edital_id=edital_id,
-        query=request.pergunta,
+        query=expanded_query,
         top_candidates=30,
         top_final=6,
     )
@@ -181,6 +195,10 @@ async def chat_edital(
         query=request.pergunta,
         candidates=candidates,
     )
+
+    # Armazena no cache semântico se resposta for verificada
+    if chat_response.encontrado:
+        semantic_cache.set(edital_id, request.pergunta, chat_response)
 
     # 3. Registro histórico para rastreabilidade e métricas (RN-08)
     msg_log = ConversaMensagem(
@@ -368,3 +386,96 @@ async def delete_edital(edital_id: int, db: AsyncSession = Depends(get_db_sessio
     await db.delete(edital)
     await db.commit()
     return None
+
+
+@router.get(
+    "/editais/{edital_id}/minuta-impugnacao",
+    response_model=MinutaImpugnacaoResponse,
+    summary="Gera minuta formal de impugnação administrativa fundamentada nos riscos detectados",
+)
+async def get_minuta_impugnacao(
+    edital_id: int,
+    razao_social: str = Query("[NOME DA EMPRESA LICITANTE]", description="Razão social da empresa impugnante"),
+    cnpj: str = Query("[00.000.000/0001-00]", description="CNPJ da empresa impugnante"),
+    db: AsyncSession = Depends(get_db_session),
+):
+    query = select(Edital).where(Edital.id == edital_id)
+    result = await db.execute(query)
+    edital = result.scalars().first()
+    if not edital:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Edital não encontrado.")
+
+    chunks_query = (
+        select(Chunk)
+        .join(Documento, Chunk.documento_id == Documento.id)
+        .where(Documento.edital_id == edital_id)
+    )
+    chunks = (await db.execute(chunks_query)).scalars().all()
+    deadlines = deadlines_extractor.extract_deadlines(chunks)
+    warranty = deadlines_extractor.extract_warranty(chunks)
+    detected_risks = risk_detector.analyze_risks(chunks, deadlines=deadlines, warranty=warranty)
+
+    minuta_md = PetitionGenerator.generate_impugnacao(
+        edital_numero=edital.numero or f"Edital #{edital.id}",
+        orgao=edital.orgao or "Órgão Licitante",
+        alerts=detected_risks,
+        razao_social=razao_social,
+        cnpj=cnpj,
+    )
+
+    return MinutaImpugnacaoResponse(
+        edital_id=edital_id,
+        edital_numero=edital.numero or f"Edital #{edital.id}",
+        orgao=edital.orgao or "Órgão Licitante",
+        total_alertas=len(detected_risks),
+        minuta_markdown=minuta_md,
+    )
+
+
+@router.get(
+    "/editais/{edital_id}/relatorio",
+    response_model=RelatorioAuditoriaResponse,
+    summary="Gera Dossiê Executivo completo de auditoria do edital",
+)
+async def get_relatorio_auditoria(
+    edital_id: int,
+    db: AsyncSession = Depends(get_db_session),
+):
+    query = select(Edital).where(Edital.id == edital_id)
+    result = await db.execute(query)
+    edital = result.scalars().first()
+    if not edital:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Edital não encontrado.")
+
+    chunks_query = (
+        select(Chunk)
+        .join(Documento, Chunk.documento_id == Documento.id)
+        .where(Documento.edital_id == edital_id)
+    )
+    chunks = (await db.execute(chunks_query)).scalars().all()
+
+    deadlines = deadlines_extractor.extract_deadlines(chunks)
+    penalties = deadlines_extractor.extract_penalties(chunks)
+    warranty = deadlines_extractor.extract_warranty(chunks)
+    checklist = checklist_extractor.extract_from_chunks(chunks, document_name=edital.numero or "Edital")
+    alerts = risk_detector.analyze_risks(chunks, deadlines=deadlines, warranty=warranty)
+
+    dossier_md = AuditReportGenerator.generate_dossier(
+        edital_numero=edital.numero or f"Edital #{edital.id}",
+        orgao=edital.orgao or "Órgão Licitante",
+        objeto=edital.objeto or "Objeto da licitação",
+        deadlines=deadlines,
+        penalties=penalties,
+        warranty=warranty,
+        checklist=checklist,
+        alerts=alerts,
+        diffs=None,
+    )
+
+    return RelatorioAuditoriaResponse(
+        edital_id=edital_id,
+        edital_numero=edital.numero or f"Edital #{edital.id}",
+        orgao=edital.orgao or "Órgão Licitante",
+        relatorio_markdown=dossier_md,
+    )
+

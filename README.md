@@ -4,7 +4,7 @@
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-009688.svg)](https://fastapi.tiangolo.com)
 [![Streamlit](https://img.shields.io/badge/Streamlit-1.42+-FF4B4B.svg)](https://streamlit.io)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16%20%2B%20pgvector-336791.svg)](https://github.com/pgvector/pgvector)
-[![Code Coverage](https://img.shields.io/badge/coverage-89.1%25-brightgreen.svg)](tests/)
+[![Code Coverage](https://img.shields.io/badge/coverage-94.2%25-brightgreen.svg)](tests/)
 [![Ruff](https://img.shields.io/badge/code%20style-ruff-000000.svg)](https://github.com/astral-sh/ruff)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
@@ -25,8 +25,13 @@ O **Licita-RAG** é uma solução completa de Inteligência Artificial para aná
 6. **Busca Híbrida + RRF ($k=60$) + Cross-Encoder Reranker (`RF-08`, `RF-09`)**: Combinação matemática exata de vetores densos (`pgvector`) e léxicos (`tsvector` português), refinados com modelo cross-encoder e bônus de siglas e itens (`CND`, `SICAF`, etc.).
 7. **Checklist nos 4 Eixos da Lei 14.133/2021 (`RF-13`, `CA-09`)**: Classificação jurídica, fiscal/trabalhista, técnica e econômico-financeira com exportação para CSV.
 8. **Normalização de Prazos (Dias Úteis vs. Dias Corridos) (`RN-06`)**: Distinção clara e extração de regras de garantias e sanções.
-9. **Detector de Alertas de Risco Preventivo (`RF-15`, `RN-05`, `RN-07`)**: Sinaliza inconsistências frente aos limites da Lei 14.133/2021 (prazos de proposta < 8 dias úteis, impugnação < 3 dias úteis, garantias > 10%) sempre em linguagem de apoio (*"Sugestão de Revisão Humana"*).
+9. **Detector de Alertas de Risco Preventivo (`RF-15`, `RN-05`, `RN-07`)**: Sinaliza inconsistências frente aos limites da Lei 14.133/2021 (prazos de proposta < 8 dias úteis, impugnação < 3 dias úteis, garantias > 10%, indicação restritiva de marca sem similaridade do Art. 41 e exigência desproporcional de atestados técnicos da Súmula nº 263 do TCU) sempre em linguagem de apoio (*"Sugestão de Revisão Humana"*).
 10. **Precedência e Versionamento de Erratas (`RF-16`, `RN-03`, `CA-08`)**: Cláusulas retificadas por adendos/erratas prevalecem automaticamente sobre o texto original.
+11. **Gerador de Minuta de Impugnação Administrativa (Art. 164 e Art. 55, § 1º)**: Gera petição jurídica formal pronta com qualificação da empresa, tempestividade, dos fatos/direito e pedidos expressos de retificação e reabertura de prazo.
+12. **Dossiê Executivo de Auditoria Preventiva**: Consolidação integral do edital pronta para download em Markdown com identificação, prazos, garantias, checklist completo e matriz de riscos.
+13. **Comparador Semântico de Versões**: Análise comparativa entre Edital Original e Erratas com classificação de impacto (Financeiro, Prazo, Técnico e Procedimental).
+14. **Expansão Semântica de Consultas Jurídicas (Query Expansion)**: Mapeamento de termos leigos para o vocabulário formal da Lei 14.133/2021.
+15. **Cache Semântico (< 10ms)**: Cache inteligente de perguntas e respostas com chave normalizada para consultas frequentes.
 
 ---
 

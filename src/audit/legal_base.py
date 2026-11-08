@@ -61,6 +61,27 @@ LEGAL_KNOWLEDGE_BASE: list[LegalArticle] = [
             "social ou de patrimônio líquido mínimo não poderá exceder a 10% (dez por cento) do valor estimado da contratação."
         ),
     ),
+    LegalArticle(
+        norma="Lei nº 14.133/2021",
+        artigo="Art. 41, inciso I",
+        ementa="Vedação à indicação de marcas ou modelos exclusivos sem ressalva de similaridade",
+        texto=(
+            "Art. 41. No caso de licitação que envolva o fornecimento de bens, a Administração não poderá indicar marcas, "
+            "modelos ou especificações exclusivas, salvo quando fundamentada a necessidade de padronização, sendo sempre "
+            "admitida a comprovação de equivalência ou similaridade."
+        ),
+    ),
+    LegalArticle(
+        norma="Jurisprudência TCU",
+        artigo="Súmula nº 263/TCU",
+        ementa="Limite máximo de 50% para quantitativos mínimos em atestados técnicos",
+        texto=(
+            "Súmula nº 263/TCU. Para a comprovação da capacidade técnico-operacional das licitantes, e desde que limitadas, "
+            "simultaneamente, às parcelas de maior relevância e valor significativo do objeto a ser contratado, é legal a "
+            "exigência de comprovação da execução de quantitativos mínimos em obras ou serviços similares, não superiores a "
+            "50% (cinquenta por cento) dos quantitativos dos itens ou parcelas correspondentes."
+        ),
+    ),
 ]
 
 
