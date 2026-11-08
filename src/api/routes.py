@@ -16,6 +16,7 @@ from src.api.schemas import (
     MetricsResponse,
     PrazoItemResponse,
 )
+from src.config import settings
 from src.db.models import (
     Alerta,
     ChecklistIten,
@@ -26,11 +27,15 @@ from src.db.models import (
     StatusEdital,
 )
 from src.db.session import get_db_session
+from src.generation.responder import GroundedResponder
+from src.retrieval.hybrid_retriever import HybridRetriever
 
 router = APIRouter(prefix="/api/v1", tags=["Editais"])
 system_router = APIRouter(tags=["Sistema"])
 
 START_TIME = time.time()
+retriever = HybridRetriever()
+responder = GroundedResponder()
 
 
 # ==========================================
@@ -156,14 +161,34 @@ async def chat_edital(
     if not edital:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Edital não encontrado.")
 
-    # Placeholder para o pipeline completo de RAG que será implementado nas próximas sprints
-    return ChatQueryResponse(
-        resposta="A consulta está aguardando o pipeline de recuperação e geração (Sprint 4).",
-        citacoes=[],
-        encontrado=False,
-        confianca=0.0,
-        chunk_ids=[],
+    # 1. Recuperação híbrida (vetorial + full-text) com fusão RRF e Cross-Encoder reranking
+    candidates = await retriever.search_database(
+        db=db,
+        edital_id=edital_id,
+        query=request.pergunta,
+        top_candidates=30,
+        top_final=6,
     )
+
+    # 2. Geração fundamentada com validação pós-geração de citações
+    chat_response, latencia_ms = responder.generate_response(
+        query=request.pergunta,
+        candidates=candidates,
+    )
+
+    # 3. Registro histórico para rastreabilidade e métricas (RN-08)
+    msg_log = ConversaMensagem(
+        edital_id=edital_id,
+        pergunta=request.pergunta,
+        resposta=chat_response.resposta,
+        chunk_ids=chat_response.chunk_ids,
+        modelo=settings.DEFAULT_LLM_PROVIDER,
+        latencia_ms=latencia_ms,
+    )
+    db.add(msg_log)
+    await db.commit()
+
+    return chat_response
 
 
 @router.get(
