@@ -33,6 +33,7 @@ wheels/
 .coverage
 htmlcov/
 *.cover
+eval_report.json
 
 # Data & Storage
 data/

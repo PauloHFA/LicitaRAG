@@ -52,6 +52,23 @@ services:
       - ../data:/app/data
       - ../tests:/app/tests
 
+  ui:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: licitarag_ui
+    restart: unless-stopped
+    depends_on:
+      - api
+    env_file:
+      - ../.env
+    ports:
+      - "8501:8501"
+    volumes:
+      - ../src:/app/src
+      - ../data:/app/data
+    command: ["streamlit", "run", "src/ui/app.py", "--server.port=8501", "--server.address=0.0.0.0"]
+
 volumes:
   pgdata:
     driver: local

@@ -123,3 +123,36 @@ def evaluate_abstention(
     )
 
     return taxa_abstencao_correta, taxa_falsa_recusa
+
+
+def calculate_faithfulness(
+    answer: str,
+    context_chunks: list[str],
+) -> float:
+    """Calcula a fidelidade (faithfulness) da resposta em relação aos trechos recuperados.
+
+    Verifica a taxa de sobreposição lexical e contenção de afirmações da resposta
+    no contexto recuperado. Retorna um score entre 0.0 e 1.0.
+    """
+    if not answer and not context_chunks:
+        return 1.0
+    if not answer or not context_chunks:
+        return 0.0
+
+    full_context = " ".join(context_chunks).lower()
+    sentences = [s.strip() for s in answer.split(".") if len(s.strip()) > 8]
+    if not sentences:
+        return 1.0
+
+    supported = 0
+    for s in sentences:
+        words = [w for w in s.lower().split() if len(w) > 3]
+        if not words:
+            supported += 1
+            continue
+        overlap = sum(1 for w in words if w in full_context)
+        if overlap / len(words) >= 0.5:
+            supported += 1
+
+    return supported / len(sentences)
+
