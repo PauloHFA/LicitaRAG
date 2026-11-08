@@ -16,6 +16,8 @@ from src.api.schemas import (
     MetricsResponse,
     PrazoItemResponse,
 )
+from src.audit.checklist import ChecklistExtractor
+from src.audit.deadlines import DeadlinesAndSanctionsExtractor
 from src.config import settings
 from src.db.models import (
     Alerta,
@@ -36,6 +38,8 @@ system_router = APIRouter(tags=["Sistema"])
 START_TIME = time.time()
 retriever = HybridRetriever()
 responder = GroundedResponder()
+checklist_extractor = ChecklistExtractor()
+deadlines_extractor = DeadlinesAndSanctionsExtractor()
 
 
 # ==========================================
@@ -200,6 +204,47 @@ async def get_checklist(edital_id: int, db: AsyncSession = Depends(get_db_sessio
     query = select(ChecklistIten).where(ChecklistIten.edital_id == edital_id)
     result = await db.execute(query)
     itens = result.scalars().all()
+
+    if itens:
+        return [
+            ChecklistItemResponse(
+                id=item.id,
+                categoria=item.categoria,
+                descricao=item.descricao,
+                citacao=item.citacao,
+                obrigatorio=item.obrigatorio,
+            )
+            for item in itens
+        ]
+
+    # Se ainda não persistido, extrai dos chunks indexados do edital
+    chunks_query = (
+        select(Chunk)
+        .join(Documento, Chunk.documento_id == Documento.id)
+        .where(Documento.edital_id == edital_id)
+    )
+    chunks_res = await db.execute(chunks_query)
+    chunks = chunks_res.scalars().all()
+
+    extracted_items = checklist_extractor.extract_from_chunks(chunks)
+    db_items: list[ChecklistIten] = []
+
+    for ext in extracted_items:
+        db_item = ChecklistIten(
+            edital_id=edital_id,
+            categoria=ext.categoria,
+            descricao=ext.descricao,
+            citacao=ext.citacao,
+            obrigatorio=ext.obrigatorio,
+        )
+        db.add(db_item)
+        db_items.append(db_item)
+
+    if db_items:
+        await db.commit()
+        for it in db_items:
+            await db.refresh(it)
+
     return [
         ChecklistItemResponse(
             id=item.id,
@@ -208,7 +253,7 @@ async def get_checklist(edital_id: int, db: AsyncSession = Depends(get_db_sessio
             citacao=item.citacao,
             obrigatorio=item.obrigatorio,
         )
-        for item in itens
+        for item in db_items
     ]
 
 
@@ -218,7 +263,25 @@ async def get_checklist(edital_id: int, db: AsyncSession = Depends(get_db_sessio
     summary="Lista prazos extraídos do certame",
 )
 async def get_prazos(edital_id: int, db: AsyncSession = Depends(get_db_session)):
-    return []
+    chunks_query = (
+        select(Chunk)
+        .join(Documento, Chunk.documento_id == Documento.id)
+        .where(Documento.edital_id == edital_id)
+    )
+    chunks_res = await db.execute(chunks_query)
+    chunks = chunks_res.scalars().all()
+
+    extracted_deadlines = deadlines_extractor.extract_deadlines(chunks)
+
+    return [
+        PrazoItemResponse(
+            tipo=d.tipo,
+            data_limite=d.prazo_valor,
+            dias_uteis_ou_corridos=d.dias_uteis_ou_corridos,
+            citacao=d.citacao,
+        )
+        for d in extracted_deadlines
+    ]
 
 
 @router.get(
