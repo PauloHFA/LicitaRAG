@@ -1,0 +1,75 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "licita-rag"
+version = "0.1.0"
+description = "Assistente RAG com citação estrita para extração e auditoria de conformidade de editais públicos"
+readme = "README.md"
+requires-python = ">=3.12"
+authors = [
+    { name = "Licita-RAG Team" }
+]
+dependencies = [
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.32.0",
+    "pydantic>=2.9.0",
+    "pydantic-settings>=2.6.0",
+    "python-multipart>=0.0.12",
+    "sqlalchemy>=2.0.36",
+    "asyncpg>=0.30.0",
+    "pgvector>=0.3.6",
+    "pymupdf>=1.24.10",
+    "pdfplumber>=0.11.4",
+    "pytesseract>=0.3.13",
+    "httpx>=0.27.2",
+    "redis>=5.2.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3.0",
+    "pytest-asyncio>=0.24.0",
+    "pytest-cov>=5.0.0",
+    "ruff>=0.7.0",
+    "mypy>=1.13.0",
+]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W", "UP", "B", "C4"]
+ignore = ["E501", "B008"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["src"]
+
+[tool.pytest.ini_options]
+minversion = "8.0"
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_functions = ["test_*"]
+addopts = "-ra -q --strict-markers"
+
+[tool.coverage.run]
+source = ["src"]
+omit = ["tests/*", "src/eval/*"]
+
+[tool.coverage.report]
+show_missing = true
+fail_under = 80
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError"
+]
+
+[tool.mypy]
+python_version = "3.12"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false
+ignore_missing_imports = true
