@@ -10,6 +10,7 @@ from src.ingestion.validator import (
     sanitize_filename,
     validate_pdf_file,
 )
+from src.ingestion.versions import ErrataPrecedenceResolver, VersionResolutionResult
 
 __all__ = [
     "ExtractedPage",
@@ -24,4 +25,6 @@ __all__ = [
     "sanitize_filename",
     "InvalidPDFMagicBytesError",
     "FileSizeExceededError",
+    "ErrataPrecedenceResolver",
+    "VersionResolutionResult",
 ]

@@ -18,6 +18,7 @@ from src.api.schemas import (
 )
 from src.audit.checklist import ChecklistExtractor
 from src.audit.deadlines import DeadlinesAndSanctionsExtractor
+from src.audit.risk_detector import RiskDetector
 from src.config import settings
 from src.db.models import (
     Alerta,
@@ -40,6 +41,7 @@ retriever = HybridRetriever()
 responder = GroundedResponder()
 checklist_extractor = ChecklistExtractor()
 deadlines_extractor = DeadlinesAndSanctionsExtractor()
+risk_detector = RiskDetector()
 
 
 # ==========================================
@@ -293,6 +295,51 @@ async def get_alertas(edital_id: int, db: AsyncSession = Depends(get_db_session)
     query = select(Alerta).where(Alerta.edital_id == edital_id)
     result = await db.execute(query)
     alertas = result.scalars().all()
+
+    if alertas:
+        return [
+            AlertaRiscoResponse(
+                id=a.id,
+                tipo=a.tipo,
+                descricao=a.descricao,
+                item_edital=a.item_edital,
+                referencia_legal=a.referencia_legal,
+                severidade=a.severidade.value,
+            )
+            for a in alertas
+        ]
+
+    # Se não houver persistido, analisa os chunks do certame
+    chunks_query = (
+        select(Chunk)
+        .join(Documento, Chunk.documento_id == Documento.id)
+        .where(Documento.edital_id == edital_id)
+    )
+    chunks_res = await db.execute(chunks_query)
+    chunks = chunks_res.scalars().all()
+
+    deadlines = deadlines_extractor.extract_deadlines(chunks)
+    warranty = deadlines_extractor.extract_warranty(chunks)
+    detected_risks = risk_detector.analyze_risks(chunks, deadlines=deadlines, warranty=warranty)
+
+    db_alertas: list[Alerta] = []
+    for r in detected_risks:
+        alerta_model = Alerta(
+            edital_id=edital_id,
+            tipo=r.tipo,
+            descricao=r.descricao,
+            item_edital=r.item_edital,
+            referencia_legal=r.referencia_legal,
+            severidade=r.severidade,
+        )
+        db.add(alerta_model)
+        db_alertas.append(alerta_model)
+
+    if db_alertas:
+        await db.commit()
+        for a in db_alertas:
+            await db.refresh(a)
+
     return [
         AlertaRiscoResponse(
             id=a.id,
@@ -302,7 +349,7 @@ async def get_alertas(edital_id: int, db: AsyncSession = Depends(get_db_session)
             referencia_legal=a.referencia_legal,
             severidade=a.severidade.value,
         )
-        for a in alertas
+        for a in db_alertas
     ]
 
 
