@@ -154,16 +154,25 @@ class HybridRetriever:
         )
 
     @staticmethod
-    def _clone_candidate(cand: RankedCandidate, score: float) -> RankedCandidate:
+    def _clone_candidate(cand: Any, score: float, default_id: int = 0) -> RankedCandidate:
+        raw_id = getattr(cand, "chunk_id", None)
+        if raw_id:
+            chunk_id = int(raw_id)
+        elif default_id:
+            chunk_id = default_id
+        else:
+            chunk_id = abs(hash((getattr(cand, "pagina", 0), getattr(cand, "item", ""), cand.texto[:30]))) % 1000000 + 1
+
+        doc_id = getattr(cand, "documento_id", 0)
         return RankedCandidate(
-            chunk_id=cand.chunk_id,
+            chunk_id=chunk_id,
             texto=cand.texto,
             pagina=cand.pagina,
             item=cand.item,
             secao=cand.secao,
-            tipo=cand.tipo,
+            tipo=str(cand.tipo),
             confianca=cand.confianca,
-            documento_id=cand.documento_id,
+            documento_id=doc_id,
             score_original=score,
             metadados=dict(cand.metadados),
         )
